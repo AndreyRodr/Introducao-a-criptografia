@@ -1,0 +1,40 @@
+import hashlib
+import hmac
+import secrets
+
+def sha256(mensagem):
+    return hashlib.sha256(mensagem).digest()
+
+def criar_hmac(chave, mensagem):
+    # Produz um HMAC-SHA-256
+    return hmac.new(chave, mensagem, hashlib.sha256).digest()
+
+def verificar_hmac(chave, mensagem, etiqueta):
+    # Recalcula a etiqueta e usa hmac.compare_digest para uma comparação segura
+    etiqueta_calculada = criar_hmac(chave, mensagem)
+    return hmac.compare_digest(etiqueta_calculada, etiqueta)
+
+original = b"destino=ana; valor $=100"
+alterada = b"destino=ana; valor $=900"
+
+# SHA-256 nao possui chave. O atacante consegue recalcular o resumo.
+hash_original = sha256(original)
+hash_forjado = sha256(alterada)
+assert hash_forjado == sha256(alterada)
+print("Teste 1 (SHA-256): Hash forjado pelo atacante com sucesso (sem chave).")
+
+# servidor e o remetente compartilham esta chave; o atacante nao.
+chave_legitima = secrets.token_bytes(32)
+chave_atacante = secrets.token_bytes(32)
+
+etiqueta_original = criar_hmac(chave_legitima, original)
+assert verificar_hmac(chave_legitima, original, etiqueta_original)
+print("Teste 2 (HMAC Legítimo): Servidor validou a etiqueta original.")
+
+# Crie uma etiqueta para a mensagem alterada com a chave do atacante
+# e confirme que o servidor a rejeita.
+etiqueta_atacante = criar_hmac(chave_atacante, alterada)
+
+# O assert not valida que o servidor REJEITOU a verificação (retornou False)
+assert not verificar_hmac(chave_legitima, alterada, etiqueta_atacante)
+print("Teste 3 (Ataque HMAC): Servidor REJEITOU a etiqueta criada com a chave do atacante.")
